@@ -96,8 +96,9 @@ let retyper_fail com tabs m reason =
 		print_endline (Printf.sprintf "%s%s%s" (sign_string com) (tabs ^ "  ") reason);
 	end
 
+(* [reason] is only formatted when the message is printed: the string holds the whole dependency chain *)
 let skipping_dep com tabs (m,reason) =
-	if config.print_skipping_dep then print_endline (Printf.sprintf "%sskipping %s (%s)" (sign_string com) (s_type_path m.m_path) reason)
+	if config.print_skipping_dep then print_endline (Printf.sprintf "%sskipping %s (%s)" (sign_string com) (s_type_path m.m_path) (reason ()))
 
 let unchanged_content com tabs file =
 	if config.print_unchanged_content then print_endline (Printf.sprintf "%s%s changed time not but content, reusing" (sign_string com) file)
