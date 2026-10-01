@@ -100,6 +100,13 @@ jobs:
           & "$($env:CYG_ROOT)/bin/bash.exe" @('-lc', 'cd "$OLDPWD" && cygcheck ./haxelib.exe')
           & "$($env:CYG_ROOT)/bin/bash.exe" @('-lc', 'cd "$OLDPWD" && ls ./out')
 
+      # the steps above run under PowerShell, which doesn't stop when a command fails
+      - name: Check artifact
+        shell: bash
+        run: |
+          ls -l out
+          ls out/*_bin.zip
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
