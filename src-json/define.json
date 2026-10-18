@@ -635,7 +635,7 @@
 	{
 		"name": "SourceMapInline",
 		"define": "source-map-inline",
-		"doc": "Write the JS source map into the output as a data: URL instead of a separate .map file. Implies `-D source-map`.",
+		"doc": "Write the JS source map into the output as a data: URL instead of a separate .map file. Generates the map by itself, without `-D source-map`.",
 		"platforms": ["js"]
 	},
 	{
