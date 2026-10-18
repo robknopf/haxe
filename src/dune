@@ -29,6 +29,7 @@
 	(libraries haxe)
 	(modules haxe)
 	(link_flags (:include ../lib.sexp))
-	; Uncomment to enable bytecode output for ocamldebug support
-	; (modes byte)
+	; native, and bytecode for js_of_ocaml (haxe.bc), whose link doesn't check the C stubs
+	(modes byte exe)
+	(ocamlc_flags (:standard -no-check-prims))
 )
