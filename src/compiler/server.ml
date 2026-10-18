@@ -1001,6 +1001,39 @@ and wait_loop verbose accept =
 		end;
 		heap_stats_start := heap_stats_now;
 	in
+	if Sys.getenv_opt "HAXE_RESIDENT" = Some "1" then begin
+		(* Resident mode, for a host that can't block on a socket or stdin (a browser's
+		   worker): instead of looping, register one request's handling under a name and
+		   return. The host calls it with the request (hxml, optionally \001 and the display
+		   file's contents) and gets back what a connection would have been sent. *)
+		let request s =
+			let out = Buffer.create 0 in
+			let write = Buffer.add_string out in
+			begin try
+				let hxml =
+					try
+						let idx = String.index s '\001' in
+						current_stdin := Some (String.sub s (idx + 1) ((String.length s) - idx - 1));
+						(String.sub s 0 idx)
+					with Not_found ->
+						s
+				in
+				let data = Helper.parse_hxml_data hxml in
+				process sctx (Communication.create_pipe sctx write) data
+			with e ->
+				let estr = Printexc.to_string e in
+				ServerMessage.uncaught_error estr;
+				write ("\x02\n" ^ estr)
+			end;
+			current_stdin := None;
+			cleanup();
+			update_heap();
+			while cs#has_task do cs#get_task#run done;
+			Buffer.contents out
+		in
+		Callback.register "haxe_resident_request" request;
+		0
+	end else begin
 	(* Main loop: accept connections and process arguments *)
 	while true do
 		let support_nonblock, read, write, close = accept() in
@@ -1054,6 +1087,7 @@ and wait_loop verbose accept =
 			cs#add_task (new Tasks.server_exploration_task cs)
 	done;
 	0
+	end
 
 (* Connect to given host/port and return accept function for communication *)
 and init_wait_connect host port =
