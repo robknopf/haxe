@@ -163,8 +163,16 @@ let alloc b len =
   end
 
 let safe_add_substring b s offset len =
-  let str, pos = alloc b len in
-  String.blit s offset str pos len
+  if b.position + len <= Bytes.length b.buffer then begin
+    Bytes.blit_string s offset b.buffer b.position len;
+    b.position <- b.position + len
+  end else begin
+    (* too big for the buffer: the text itself goes to the rope. Not [alloc], which
+       puts a fresh [bytes] into the rope as a string and fills it afterwards: under
+       js_of_ocaml that conversion copies, and the rope keeps the empty (zeroed) copy *)
+    move_buffer_to_rope b;
+    b.rope <- App (b.rope, Str (String.sub s offset len), rope_length b.rope + len)
+  end
 
 let add_substring b s offset len =
   if offset < 0 || len < 0 || offset > String.length s - len
