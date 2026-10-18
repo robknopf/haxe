@@ -285,32 +285,55 @@ let print ctx =
 		Rbuffer.add_string ctx.buf s
 	end)
 
-let write_mappings ctx smap =
+(* The source map as JSON text. *)
+let mappings_json ctx smap =
 	let basefile = Filename.basename ctx.com.file in
-	print ctx "\n//# sourceMappingURL=%s.map" (url_encode_s basefile);
-	let channel = open_out_bin (ctx.com.file ^ ".map") in
+	let b = Buffer.create 1024 in
 	let sources = DynArray.to_list smap.sources in
 	let to_url file =
 		ExtString.String.map (fun c -> if c == '\\' then '/' else c) (Path.get_full_path file)
 	in
-	output_string channel "{\n";
-	output_string channel "\"version\":3,\n";
-	output_string channel ("\"file\":\"" ^ (String.concat "\\\\" (ExtString.String.nsplit basefile "\\")) ^ "\",\n");
-	output_string channel ("\"sourceRoot\":\"\",\n");
-	output_string channel ("\"sources\":[" ^
+	Buffer.add_string b "{\n";
+	Buffer.add_string b "\"version\":3,\n";
+	Buffer.add_string b ("\"file\":\"" ^ (String.concat "\\\\" (ExtString.String.nsplit basefile "\\")) ^ "\",\n");
+	Buffer.add_string b ("\"sourceRoot\":\"\",\n");
+	Buffer.add_string b ("\"sources\":[" ^
 		(String.concat "," (List.map (fun s -> "\"file:///" ^ to_url s ^ "\"") sources)) ^
 		"],\n");
 	if Common.defined ctx.com Define.SourceMapContent then begin
-		output_string channel ("\"sourcesContent\":[" ^
+		Buffer.add_string b ("\"sourcesContent\":[" ^
 			(String.concat "," (List.map (fun s -> try "\"" ^ StringHelper.s_escape (Std.input_file ~bin:true s) ^ "\"" with _ -> "null") sources)) ^
 			"],\n");
 	end;
-	output_string channel "\"names\":[],\n";
-	output_string channel "\"mappings\":\"";
-	Rbuffer.output_buffer channel smap.mappings;
-	output_string channel "\"\n";
-	output_string channel "}";
-	close_out channel
+	Buffer.add_string b "\"names\":[],\n";
+	Buffer.add_string b "\"mappings\":\"";
+	Buffer.add_string b (Rbuffer.sub smap.mappings 0 (Rbuffer.length smap.mappings));
+	Buffer.add_string b "\"\n";
+	Buffer.add_string b "}";
+	Buffer.contents b
+
+(* The source map as a data: URL, for a [sourceMappingURL] comment: base64, padded. *)
+let mappings_data_url ctx smap =
+	let json = mappings_json ctx smap in
+	let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" in
+	let tbl = Array.init (String.length chars) (fun i -> String.get chars i) in
+	let encoded = Bytes.unsafe_to_string (Base64.str_encode ~tbl json) in
+	let padding = (4 - String.length encoded mod 4) mod 4 in
+	"data:application/json;charset=utf-8;base64," ^ encoded ^ String.make padding '='
+
+(* The source map: next to the output as [<output>.map], or, with -D source-map-inline,
+   inside it as a data: URL (and a .map left by an earlier build is removed). *)
+let write_mappings ctx smap =
+	if Common.defined ctx.com Define.SourceMapInline then begin
+		(try Sys.remove (ctx.com.file ^ ".map") with _ -> ());
+		print ctx "\n//# sourceMappingURL=%s" (mappings_data_url ctx smap)
+	end else begin
+		let basefile = Filename.basename ctx.com.file in
+		print ctx "\n//# sourceMappingURL=%s.map" (url_encode_s basefile);
+		let channel = open_out_bin (ctx.com.file ^ ".map") in
+		output_string channel (mappings_json ctx smap);
+		close_out channel
+	end
 
 let newline ctx =
 	match Rbuffer.nth ctx.buf (Rbuffer.length ctx.buf - 1) with
@@ -1791,7 +1814,7 @@ let set_current_class ctx c =
 
 let alloc_ctx com es_version =
 	let smap =
-		if com.debug || Common.defined com Define.JsSourceMap || Common.defined com Define.SourceMap then
+		if com.debug || Common.defined com Define.JsSourceMap || Common.defined com Define.SourceMap || Common.defined com Define.SourceMapInline then
 			Some {
 				source_last_pos = { file = 0; line = 0; col = 0};
 				print_comma = false;
