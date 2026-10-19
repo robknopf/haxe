@@ -321,10 +321,10 @@ let mappings_data_url ctx smap =
 	let padding = (4 - String.length encoded mod 4) mod 4 in
 	"data:application/json;charset=utf-8;base64," ^ encoded ^ String.make padding '='
 
-(* The source map: next to the output as [<output>.map], or, with -D source-map-inline,
+(* The source map: next to the output as [<output>.map], or, with -D source-map=inline,
    inside it as a data: URL (and a .map left by an earlier build is removed). *)
 let write_mappings ctx smap =
-	if Common.defined ctx.com Define.SourceMapInline then begin
+	if Common.defined_value_safe ctx.com Define.SourceMap = "inline" then begin
 		(try Sys.remove (ctx.com.file ^ ".map") with _ -> ());
 		print ctx "\n//# sourceMappingURL=%s" (mappings_data_url ctx smap)
 	end else begin
@@ -1814,7 +1814,7 @@ let set_current_class ctx c =
 
 let alloc_ctx com es_version =
 	let smap =
-		if com.debug || Common.defined com Define.JsSourceMap || Common.defined com Define.SourceMap || Common.defined com Define.SourceMapInline then
+		if com.debug || Common.defined com Define.JsSourceMap || Common.defined com Define.SourceMap then
 			Some {
 				source_last_pos = { file = 0; line = 0; col = 0};
 				print_comma = false;
